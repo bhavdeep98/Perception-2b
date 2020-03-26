@@ -29,7 +29,7 @@ class planarHomography():
     def load_single(self,image_name):
         img = cv2.imread(self.path+"/"+image_name)
         cv2.imshow("Single Loaded Image to check",img)
-        cv2.waitKey(50)
+        cv2.waitKey()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         h, w = img.shape[:2]
         self.h = h
@@ -65,7 +65,7 @@ class planarHomography():
                 ret_l = cv2.drawChessboardCorners(x, (9, 6),
                                                   corners, ret)
                 cv2.imshow("image", x)
-                cv2.waitKey(500)
+                cv2.waitKey()
         self.objpoints.append(objp)
         return objs,imgpoints
 
@@ -151,6 +151,7 @@ if __name__ == "__main__":
     ### Step 1 ###
     ### Load the image and the camera parameters
     gray = pHomography.load_single("left_0.png")
+    gray_2 = pHomography_2.load_single("right_0.png")
     
     # l,r = pHomography.load_images()
     # lobjs, limgpoints = pHomography.find_corners(l)
@@ -161,14 +162,17 @@ if __name__ == "__main__":
     call = []
     carr = []
     ## Load the files saved in the previous tasks
-    call.append(np.loadtxt("../left_cam_mtx.np"))#, encoding='bytes', allow_pickle=True).item()
-    call.append(np.loadtxt("../left_cam_dist.np"))#, encoding='bytes', allow_pickle=True).item()
-    carr.append(np.loadtxt("../right_cam_mtx.np"))#, encoding='bytes', allow_pickle=True).item()
-    carr.append(np.loadtxt("../right_cam_dist.np"))#, encoding='bytes', allow_pickle=True).item()
+    call.append(np.loadtxt("../../parameters/left/cameraMatrix.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
+    call.append(np.loadtxt("../../parameters/left/cameraDistortion.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
+    carr.append(np.loadtxt("../../parameters/right/cameraMatrix.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
+    carr.append(np.loadtxt("../../parameters/right/cameraDistortion.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
     
     # objs, imgpoints = cv2.findChessboardCorners(gray, (9, 6), None)
     objs, imgpoints = pHomography.find_corners([gray])
+    objs_2, imgpoints_2 = pHomography_2.find_corners([gray_2])
 
+    # print("imgpoints_2 --------")
+    # print(imgpoints_2)
     ### Step 2 ###
     ### Undistort the loaded image and extract 2D-2D point corrospondence
     print("At Step 2")
@@ -179,28 +183,25 @@ if __name__ == "__main__":
     # print(os.getcwd())
     outputImage_camera = cv2.imread(r"calibresultleft_undistorted.png")
     cv2.imshow("Undistorted Image",outputImage_camera)
-    cv2.waitKey(500)
+    cv2.waitKey()
     
-    print("imgpoints")
-    print(np.array(imgpoints))
+    # print("imgpoints")
+    # print(np.array(imgpoints))
     rec_imgpoints = cv2.remap(np.array(imgpoints), mapx, mapy, cv2.INTER_LINEAR)
     # objs, imgpoints = pHomography.find_corners([outputImage_camera])
-    print("rec_imgpoints")
+    print("rec_imgpoints ***************")
     print(rec_imgpoints)
 
     #region Second Image for homography
-    gray_2 = pHomography_2.load_single("left_1.png")
-    objs_2, imgpoints_2 = pHomography_2.find_corners([gray_2])
-    print("imgpoints_2")
-    print(np.array(imgpoints_2))
+    # gray_2 = pHomography_2.load_single("left_1.png")
+    # objs_2, imgpoints_2 = pHomography_2.find_corners([gray_2])
+    # print("imgpoints_2++++++")
+    # print(np.array(imgpoints_2))
     
-    mapx,mapy = pHomography_2.undistort(gray,call,"left_undistorted_2")
-    outputImage_camera_2 = cv2.imread(r"calibresultleft_undistorted_2.png")
+    mapx,mapy = pHomography_2.undistort(gray_2,carr,"right_undistorted")
+    outputImage_camera_2 = cv2.imread(r"calibresultright_undistorted.png")
     cv2.imshow("Undistorted Image 2",outputImage_camera_2)
-    cv2.waitKey(500)
-
-    print("imgpoints_2")
-    print(np.array(imgpoints_2))
+    cv2.waitKey()
     
     rec_imgpoints_2 = cv2.remap(np.array(imgpoints_2), mapx, mapy, cv2.INTER_LINEAR)
     print("rec_imgpoints_2")
@@ -208,10 +209,8 @@ if __name__ == "__main__":
     # objs_2, imgpoints_2 = pHomography.find_corners([outputImage_camera_2])
 
     #endregion
-    print(imgpoints)
-    print(imgpoints_2)
-
-    h, status = cv2.findHomography(rec_imgpoints,rec_imgpoints_2)
+    print(len(imgpoints))
+    h, status = cv2.findHomography(np.array(imgpoints),np.array(imgpoints_2))
 
     im_out = cv2.warpPerspective(gray, h, (gray_2.shape[1],gray_2.shape[0]))
 
@@ -227,5 +226,4 @@ if __name__ == "__main__":
     ### Wrap the image ###
     """
         Reference function given in the Class note is "warpPerspective"
-    
     """
