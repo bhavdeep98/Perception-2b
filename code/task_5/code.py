@@ -85,16 +85,17 @@ class planarHomography():
         newcameramtx, roi = cv2.getOptimalNewCameraMatrix(calib[0], calib[1], (w, h), 1, (w, h))
 
         # undistort
-        mapx, mapy = cv2.initUndistortRectifyMap(calib[0], calib[1], None, newcameramtx, (w, h), 5)
+        # mapx, mapy = cv2.initUndistortRectifyMap(calib[0], calib[1], None, newcameramtx, (w, h), 5)
+        mapx, mapy = cv2.initUndistortRectifyMap(calib[0], calib[1], None,calib[0], (w*10, h*10), 5)
         dst = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
 
         # crop the image
         x, y, w, h = roi
-        dst = dst[y:y + h, x:x + w]
+        # dst = dst[y:y + h, x:x + w]
         # print("ROI :",x, y, w, h)
         # print(dst)
         cv2.imwrite('calibresult'+fname+'.png', dst)
-        return mapx,mapy
+        return dst
 
     def findHomography(self, img1, img2):
         # define constants
@@ -175,7 +176,7 @@ if __name__ == "__main__":
     print("At Step 2")
     
     # outputImage_camera1 = cv2.undistortPoints(np.concatenate(imgpoints,axis=0),call[0],call[1])
-    mapx,mapy = pHomography.undistort(gray,call,"left_undistorted")
+    dst = pHomography.undistort(gray,call,"left_undistorted")
     # print(os.getcwd())
     outputImage_camera = cv2.imread(r"calibresultleft_undistorted.png")
     cv2.imshow("Undistorted Image",outputImage_camera)
@@ -192,30 +193,32 @@ if __name__ == "__main__":
     
     # corners_updated=np.expand_dims(corners,axis=1)
     temp = corners.reshape((-1,2))
-    # print(temp.shape)
+    print(temp.shape)
     # z = np.zeros((9*6,1), np.float32)
     # corners_updated = np.append(temp,z,1)
     # print(corners_updated.shape)
     # print(temp)
-    print(newcameramtx)
-    print(call[0])
-    print(call[1])
-    rec_corners = cv2.undistort(temp,call[0],call[1],None,newcameramtx)
+    # print(newcameramtx)
+    # print(call[0])
+    # print(call[1])
+    # rec_corners = pHomography.undistort(temp,call,"imgpoints")
+    # print(rec_corners)
+    
     # undistort
     # mapx, mapy = cv2.initUndistortRectifyMap(call[0], call[1], None, newcameramtx, (w, h), 5)
     # rec_corners = cv2.remap(corners_updated, mapx, mapy, cv2.INTER_LINEAR)
 
     # crop the image
-    x, y, w, h = roi
-    print(roi)
+    # x, y, w, h = roi
+    # print(roi)
     # rec_corners = rec_corners[y:y + h, x:x + w]
-    # print(rec_corners)
     
-    # objs, imgpoints = pHomography.find_corners([outputImage_camera])
+    # rec_objs, rec_imgpoints = pHomography.find_corners([outputImage_camera])
+    # print(rec_imgpoints)
     # print("rec_imgpoints ***************")
     # print(rec_imgpoints)
-    # rec_imgpoints = cv2.findChessboardCorners(outputImage_camera, (9, 6), None)
-    # print(rec_imgpoints)
+    rec_imgpoints = cv2.findChessboardCorners(outputImage_camera, (9, 6), None)
+    print(rec_imgpoints)
     objp_2 = np.zeros((6*9,3), np.float32)
     objp_2[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
     objp_2 = objp_2*10
@@ -238,4 +241,5 @@ if __name__ == "__main__":
 
     im_out = cv2.warpPerspective(gray, h, (outputImage_camera.shape[1],outputImage_camera.shape[0]))
     cv2.imshow("Warped Source Image", im_out)
+    cv2.imwrite("Warped_Source_Image.png", im_out)
     cv2.waitKey()
