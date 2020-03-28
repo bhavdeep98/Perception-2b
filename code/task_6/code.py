@@ -6,6 +6,8 @@ import matplotlib as mpl
 import pandas as pd
 from glob import iglob
 import os
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 #Step (1): Load the image sequence and camera parameters. 
 images = []
@@ -13,6 +15,15 @@ left_images = "../../images/task_6/left_*"
 left_file_list = [f for f in iglob(left_images, recursive=True) if os.path.isfile(f)]
 left_imgs = [cv2.imread(x) for x in left_file_list]
 ite = 0
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+ax.view_init(elev=10, azim=0)
+plt.title('3D point cloud: Use pan axes button below to inspect')
 
 for frame in left_imgs:
 
@@ -78,4 +89,41 @@ for frame in left_imgs:
 	print("t:")
 	print(t)
 
-	# PENDING: Step (4): Check the camera pose estimation results
+	# Step (4): Check the camera pose estimation results
+
+	def make_homogeneous_pose(R, t):
+	        return np.concatenate((np.concatenate((R,t),axis=1),np.array([[0,0,0,1]])),axis=0)
+	    
+	T = make_homogeneous_pose(R,t)
+	cam_frustrum = np.array([[-1,-1,1,1],
+	           [1,-1,1,1],
+	           [1,1,1,1],
+	           [-1,1,1,1],
+	           [-1,-1,1,1],
+	           [0,0,0,1],
+	           [1,-1,1,1],
+	           [1,1,1,1],
+	           [0,0,0,1],
+	           [-1,1,1,1]])
+
+	cam_frustrum1 = cam_frustrum*4
+
+	cam_frustrum2 = (T @ cam_frustrum.transpose()).transpose()*4
+
+	cam_frustrum3 = np.squeeze(np.asarray(cam_frustrum2))
+
+	ax.plot(cam_frustrum1[:,0], cam_frustrum1[:,1], cam_frustrum1[:,2])
+	ax.plot(cam_frustrum3[:,0], cam_frustrum3[:,1], cam_frustrum3[:,2])
+	# plot top left corner as red dot
+	ax.scatter(cam_frustrum3[:,0][0], cam_frustrum3[:,1][0], cam_frustrum3[:,2][0], c='r', marker='o',zdir="z")
+
+#plt.show()
+
+ax.view_init(elev=-135, azim=-45)
+fig.savefig("../../output/task_6/view1.png")
+ax.view_init(elev=-140, azim=-10)
+fig.savefig("../../output/task_6/view2.png")
+ax.view_init(elev=-90, azim=0)
+fig.savefig("../../output/task_6/view3.png")
+ax.view_init(elev=-145, azim=-5)
+fig.savefig("../../output/task_6/view4.png")
