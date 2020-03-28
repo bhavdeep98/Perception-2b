@@ -50,7 +50,7 @@ for frame in left_imgs:
 	plt.legend()
 	plt.title(left_file_list[ite])
 	#plt.show()
-	plt.savefig("../../output/task_6/left_"+ str(ite) + ".png")
+	plt.savefig("../../output/task_6/left_"+ str(left_file_list[ite].split('.png')[0].split('left_')[1]) + ".png")
 
 
 	#Step (3): Estimate the camera pose using PNP
@@ -63,26 +63,19 @@ for frame in left_imgs:
 	# convert format from list to np
 	corners = np.asarray(corners).squeeze()
 
+	( _, rvec, tvec) = cv2.solvePnP(object_points, corners, camera_matrix, dist_coeffs)
+
+	R = np.matrix(cv2.Rodrigues(rvec)[0]).T
+
+	t =(-R * tvec)*5
+
 	print("\n********************" + left_file_list[ite]+ "********************\n")
 	ite+=1
 
-	( _, rvec, tvec) = cv2.solvePnP(object_points, corners, camera_matrix, dist_coeffs)
-
-	rotM = cv2.Rodrigues(rvec)[0]
-	rotM2 = np.matrix(rotM).T
-
 	print("R:")
-	print(rotM2)
-
-	# PENDING: Need to figure it out the t vector
-	"""
-	cameraPosition = -np.matrix(rotM).T * np.matrix(tvec)
-	print("cameraPosition")
-	print(cameraPosition)
+	print(R)
 
 	print("t:")
-	t = -rotM * tvec
-	print(tvec)
-	"""
+	print(t)
 
 	# PENDING: Step (4): Check the camera pose estimation results
