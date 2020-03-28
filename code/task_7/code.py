@@ -151,15 +151,15 @@ class CV():
             # print(keypoint_i, " radius_l:", radius_l[keypoint_i])
             keypoint_i = keypoint_i + 1
 
-        keypoint_list_ld = np.c_[keypoint_list_l, radius_l]
-        keypoint_list_ld = sorted(keypoint_list_ld, key=lambda x:x[1], reverse=True)
-        keypoint_list_ld = np.delete(keypoint_list_ld, 1, axis=1).transpose()[0]
+        keypoint_list_l1 = np.c_[keypoint_list_l, radius_l]
+        keypoint_list_l1 = sorted(keypoint_list_l1, key=lambda x:x[1], reverse=True)
+        keypoint_list_l1 = np.delete(keypoint_list_l1, 1, axis=1).transpose()[0]
 
-        img3_l = cv2.drawKeypoints(l1, keypoint_list_ld, None, color=(0,255,0), flags=0)
+        img3_l = cv2.drawKeypoints(l1, keypoint_list_l1, None, color=(0,255,0), flags=0)
         plt.imsave("../../output/task_7/"+i1+"_suppressed_key_points.png", img3_l)
-        keypoint_list_ld, des_l = orb.compute(l1, keypoint_list_ld)
+        keypoint_list_l1, des_l = orb.compute(l1, keypoint_list_l1)
 
-        return keypoint_list_ld,keypoint_list_l,des_l
+        return keypoint_list_l1,keypoint_list_l,des_l
 
     def kps2pts(self,kps1, kps2, matches):
         pts1 = []
@@ -191,19 +191,19 @@ class CV():
         plt.imsave("../../output/task_7/"+i2+"_key_points.png", img2_r)
 
         # left keypoints
-        keypoint_list_ld,keypoint_list_l,des_l= self.get_keypoints(kp_l,l1,i1,orb)
+        keypoint_list_l1,keypoint_list_l,des_l= self.get_keypoints(kp_l,l1,i1,orb)
         # right keypoints
-        keypoint_list_rd,keypoint_list_r,des_r= self.get_keypoints(kp_r,l2,i2,orb)
+        keypoint_list_l2,keypoint_list_r,des_r= self.get_keypoints(kp_r,l2,i2,orb)
 
         #matches
         matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
         matches = matcher.match(des_l, des_r)
 
-        print(len(keypoint_list_ld),len(keypoint_list_rd),len(matches))
-        img4 = cv2.drawMatches(l1, keypoint_list_ld, l2, keypoint_list_rd, matches, l1)
+        print(len(keypoint_list_l1),len(keypoint_list_l2),len(matches))
+        img4 = cv2.drawMatches(l1, keypoint_list_l1, l2, keypoint_list_l2, matches, l1)
         plt.imsave("../../output/task_7/"+pref+"_matches.png", img4)#,plt.show()
 
-        ptsl1,ptsl2,_ = self.kps2pts(keypoint_list_ld,keypoint_list_rd,matches)
+        ptsl1,ptsl2,_ = self.kps2pts(keypoint_list_l1,keypoint_list_l2,matches)
 
         E, mask = cv2.findEssentialMat(np.float32(ptsl1), np.float32(ptsl2),cameraMatrix=call[0])
 
@@ -220,11 +220,11 @@ class CV():
                 if m[0]==1:
                     ret.append(kp)
             return ret
-        # keypoint_list_ld = filter(keypoint_list_ld,mask)
-        # keypoint_list_rd = filter(keypoint_list_rd,mask)
-        print(len(keypoint_list_ld),len(keypoint_list_rd),len(matches_E))
+        # keypoint_list_l1 = filter(keypoint_list_l1,mask)
+        # keypoint_list_l2 = filter(keypoint_list_l2,mask)
+        print(len(keypoint_list_l1),len(keypoint_list_l2),len(matches_E))
 
-        img5 = cv2.drawMatches(l1, keypoint_list_ld, l2, keypoint_list_rd, matches_E, l1)
+        img5 = cv2.drawMatches(l1, keypoint_list_l1, l2, keypoint_list_l2, matches_E, l1)
         plt.imsave("../../output/task_7/"+pref+"_matches_E.png", img5)#,plt.show()
 
         points, R, t, mask = cv2.recoverPose(E, ptsl1_E, ptsl2_E, cameraMatrix=call[0])#, distanceThresh=10)
@@ -247,6 +247,8 @@ class CV():
 
         P_l = np.dot(call[0],  M_l)
         P_r = np.dot(call[0],  M_r)
+
+        #only inliers triangulated
         point_4d_hom = cv2.triangulatePoints(P_l, P_r, np.expand_dims(ptsl1_E, axis=1), np.expand_dims(ptsl2_E, axis=1))
         # point_4d_hom = cv2.triangulatePoints(P_l, P_r, ptsl1, ptsl2)
 
@@ -281,7 +283,7 @@ class CV():
         Ys = [x[1] for x in point_3d]
         Zs = [x[2] for x in point_3d]
 
-        if max(Zs)> 250:
+        if max(Zs)> 500:
             point_3d=point_3d/10
             Xs = [x[0] for x in point_3d]
             Ys = [x[1] for x in point_3d]
