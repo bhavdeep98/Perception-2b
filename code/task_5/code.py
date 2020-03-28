@@ -16,20 +16,23 @@ class planarHomography():
     def __init__(self,path):
         self.path = path
         # termination criteria
-        self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-        self.stereocalib_criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-5)
+        self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 25, 0.001)
+        # self.stereocalib_criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-5)
+        self.stereocalib_criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 25, 1e-5)
         self.left_imgs = []
         self.right_imgs = []
         self.objpoints = [] # 3D points in the real world space
         self.CameraParameters = namedtuple('CameraParameters', ['M', 'distCoeff', 'R', 't'])
         self.h = 0
         self.w = 0
+        self.curruntImage = ""
 
     ### Load Images
     def load_single(self,image_name):
+        self.curruntImage = image_name
         img = cv2.imread(self.path+"/"+image_name)
         cv2.imshow("Single Loaded Image to check",img)
-        cv2.waitKey()
+        cv2.waitKey(500)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         h, w = img.shape[:2]
         self.h = h
@@ -65,9 +68,9 @@ class planarHomography():
                 ret_l = cv2.drawChessboardCorners(x, (9, 6),
                                                   corners, ret)
                 cv2.imshow("image", x)
-                cv2.waitKey()
+                cv2.waitKey(500)
         self.objpoints.append(objp)
-        return objs,imgpoints
+        return corners2
 
 
     def calibratecamera(self,imagepoints):
@@ -76,54 +79,61 @@ class planarHomography():
         return calib
 
     # Calib : ret, mtx, dist, rvecs, tvecs
-    def undistort(self,img, calib,fname):
+    def undistort(self,img, calib,fname,scale):
         # get image camera matrix
         h, w = img.shape[:2]
         newcameramtx, roi = cv2.getOptimalNewCameraMatrix(calib[0], calib[1], (w, h), 1, (w, h))
 
         # undistort
-        mapx, mapy = cv2.initUndistortRectifyMap(calib[0], calib[1], None, newcameramtx, (w, h), 5)
+        # mapx, mapy = cv2.initUndistortRectifyMap(calib[0], calib[1], None, newcameramtx, (w, h), 5)
+        mapx, mapy = cv2.initUndistortRectifyMap(calib[0], calib[1], None,calib[0], (w*scale, h*scale), 5)
         dst = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
 
         # crop the image
         x, y, w, h = roi
-        dst = dst[y:y + h, x:x + w]
+        # dst = dst[y:y + h, x:x + w]
+        # print("ROI :",x, y, w, h)
+        # print(dst)
         cv2.imwrite('calibresult'+fname+'.png', dst)
+        return mapx, mapy, dst
 
-        return mapx,mapy
+    def findHomography(self, img1, img2):
+        # define constants
+        MIN_MATCH_COUNT = 10
+        MIN_DIST_THRESHOLD = 0.7
+        RANSAC_REPROJ_THRESHOLD = 5.0
 
-    def stereo_calibrate(self,imgpoints_l,imgpoints_r,call,carr):
-        flags = 0
-        flags |= cv2.CALIB_FIX_INTRINSIC
-        # flags |= cv2.CALIB_FIX_PRINCIPAL_POINT
-        flags |= cv2.CALIB_USE_INTRINSIC_GUESS
-        flags |= cv2.CALIB_FIX_FOCAL_LENGTH
-        # flags |= cv2.CALIB_FIX_ASPECT_RATIO
-        flags |= cv2.CALIB_ZERO_TANGENT_DIST
-        ret, M1, d1, M2, d2, R, T, E, F = cv2.stereoCalibrate(self.objpoints, imgpoints_l, 
-                                imgpoints_r, call[0], call[1], carr[0], 
-                                carr[1], (self.w, self.h), 
-                                R=None, T=None, E=None, F=None,
-                                criteria=self.stereocalib_criteria,
-                                flags=cv2.CALIB_FIX_INTRINSIC)
+        # Initiate SIFT detector
+        sift = cv2.xfeatures2d.SIFT_create()
 
-        print('Intrinsic_mtx_1', M1)
-        print('dist_1', d1)
-        print('Intrinsic_mtx_2', M2)
-        print('dist_2', d2)
-        print('R', R)
-        print('T', T)
-        print('E', E)
-        print('F', F)
-        print('')
+        # find the keypoints and descriptors with SIFT
+        kp1, des1 = sift.detectAndCompute(img1, None)
+        kp2, des2 = sift.detectAndCompute(img2, None)
 
-        camera_model = dict([('ret',ret),('M1', M1), ('M2', M2), ('dist1', d1),
-                            ('dist2', d2), ('R', R), ('T', T),
-                            ('E', E), ('F', F)])
+        # find matches
+        FLANN_INDEX_KDTREE = 1
+        index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+        search_params = dict(checks=50)
 
-        return camera_model
+        flann = cv2.FlannBasedMatcher(index_params, search_params)
+        matches = flann.knnMatch(des1, des2, k=2)
 
-    
+        # store all the good matches as per Lowe's ratio test.
+        good = []
+        for m, n in matches:
+            if m.distance < MIN_DIST_THRESHOLD * n.distance:
+                good.append(m)
+
+
+        if len(good) > MIN_MATCH_COUNT:
+            src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+            dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+
+            H, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, RANSAC_REPROJ_THRESHOLD)
+            return H
+
+        else: raise Exception("Not enough matches are found - {}/{}".format(len(good), MIN_MATCH_COUNT))
+
 if __name__ == "__main__":
     
     """
@@ -145,85 +155,91 @@ if __name__ == "__main__":
     imgpoints = [] # 2d points in image plane.
 
     pHomography = planarHomography("../../images/task_5")
-    pHomography_2 = planarHomography("../../images/task_5")
-    
 
     ### Step 1 ###
     ### Load the image and the camera parameters
     gray = pHomography.load_single("left_0.png")
-    gray_2 = pHomography_2.load_single("right_0.png")
-    
-    # l,r = pHomography.load_images()
-    # lobjs, limgpoints = pHomography.find_corners(l)
-    # robjs, rimgpoints = pHomography.find_corners(r)
-    # print(limgpoints)
-    # call= pHomography.calibratecamera(limgpoints)
-    # carr= pHomography.calibratecamera(rimgpoints)
+
     call = []
     carr = []
     ## Load the files saved in the previous tasks
-    call.append(np.loadtxt("../../parameters/left/cameraMatrix.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
-    call.append(np.loadtxt("../../parameters/left/cameraDistortion.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
-    carr.append(np.loadtxt("../../parameters/right/cameraMatrix.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
-    carr.append(np.loadtxt("../../parameters/right/cameraDistortion.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
+    call.append(np.loadtxt("../../parameters/left_provided/cameraMatrix.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
+    call.append(np.loadtxt("../../parameters/left_provided/cameraDistortion.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
+    carr.append(np.loadtxt("../../parameters/right_provided/cameraMatrix.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
+    carr.append(np.loadtxt("../../parameters/right_provided/cameraDistortion.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
     
     # objs, imgpoints = cv2.findChessboardCorners(gray, (9, 6), None)
-    objs, imgpoints = pHomography.find_corners([gray])
-    objs_2, imgpoints_2 = pHomography_2.find_corners([gray_2])
-
-    # print("imgpoints_2 --------")
-    # print(imgpoints_2)
+    corners = pHomography.find_corners([gray])
+    # print(corners)
     ### Step 2 ###
     ### Undistort the loaded image and extract 2D-2D point corrospondence
     print("At Step 2")
-    # stereo_camera_model = pHomography.stereo_calibrate(limgpoints,rimgpoints,call,carr)
-
+    
     # outputImage_camera1 = cv2.undistortPoints(np.concatenate(imgpoints,axis=0),call[0],call[1])
-    mapx,mapy = pHomography.undistort(gray,call,"left_undistorted")
+    mapx,mapy,_ = pHomography.undistort(gray,call,"left_undistorted",10)
     # print(os.getcwd())
     outputImage_camera = cv2.imread(r"calibresultleft_undistorted.png")
     cv2.imshow("Undistorted Image",outputImage_camera)
-    cv2.waitKey()
-    
+    cv2.waitKey(500)
+
+    # print(gray)
     # print("imgpoints")
-    # print(np.array(imgpoints))
-    rec_imgpoints = cv2.remap(np.array(imgpoints), mapx, mapy, cv2.INTER_LINEAR)
-    # objs, imgpoints = pHomography.find_corners([outputImage_camera])
-    print("rec_imgpoints ***************")
-    print(rec_imgpoints)
-
-    #region Second Image for homography
-    # gray_2 = pHomography_2.load_single("left_1.png")
-    # objs_2, imgpoints_2 = pHomography_2.find_corners([gray_2])
-    # print("imgpoints_2++++++")
-    # print(np.array(imgpoints_2))
+    # print(imgpoints)
+    # print(np.array(imgpoints).reshape(9,6))
+    # rec_corners = cv2.remap(corners, mapx, mapy, cv2.INTER_LINEAR)
+    # print(rec_corners)
+    h, w = outputImage_camera.shape[:2]
+    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(call[0], call[1], (w, h), 1, (w, h))
     
-    mapx,mapy = pHomography_2.undistort(gray_2,carr,"right_undistorted")
-    outputImage_camera_2 = cv2.imread(r"calibresultright_undistorted.png")
-    cv2.imshow("Undistorted Image 2",outputImage_camera_2)
-    cv2.waitKey()
+    # corners_updated=np.expand_dims(corners,axis=1)
+    temp = corners.reshape((-1,2))
+    z = np.zeros((9*6,1), np.float32)
+    corners_updated = np.append(temp,z,1)
+    print(corners_updated.shape)    
+    # print(corners_updated.shape)
+    # print(temp)
+    # print(newcameramtx)
+    # print(call[0])
+    # print(call[1])
+    _,_,rec_corners = pHomography.undistort(corners_updated,call,"imgpoints",1)
+    print(rec_corners)
     
-    rec_imgpoints_2 = cv2.remap(np.array(imgpoints_2), mapx, mapy, cv2.INTER_LINEAR)
-    print("rec_imgpoints_2")
-    print(rec_imgpoints_2)
-    # objs_2, imgpoints_2 = pHomography.find_corners([outputImage_camera_2])
-
-    #endregion
-    print(len(imgpoints))
-    h, status = cv2.findHomography(np.array(imgpoints),np.array(imgpoints_2))
-
-    im_out = cv2.warpPerspective(gray, h, (gray_2.shape[1],gray_2.shape[0]))
-
-    cv2.imshow("Warped Source Image", im_out)
-
+    # undistort
+    # mapx, mapy = cv2.initUndistortRectifyMap(call[0], call[1], None, newcameramtx, (w, h), 5)
+    # rec_corners = cv2.remap(temp, mapx, mapy, cv2.INTER_LINEAR)
+    # print(rec_corners)
+    # crop the image
+    # x, y, w, h = roi
+    # print(roi)
+    # rec_corners = rec_corners[y:y + h, x:x + w]
+    
+    # rec_objs, rec_imgpoints = pHomography.find_corners([outputImage_camera])
+    # print(rec_imgpoints)
+    # print("rec_imgpoints ***************")
+    # print(rec_imgpoints)
+    # rec_imgpoints = cv2.findChessboardCorners(outputImage_camera, (9, 6), None)
+    # print(rec_imgpoints)
+    objp_2 = np.zeros((6*9,3), np.float32)
+    objp_2[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
+    objp_2 = objp_2*10
+    objp_2[:,0] = objp_2[:,0] + 300
+    objp_2[:,1] = objp_2[:,1] + 800
+    print(objp_2.shape)
+    
     ### Step 3 ###
     """ 
     Calculate the planar homography
     Reference Notes: https://www.learnopencv.com/homography-examples-using-opencv-python-c/
                      https://drive.google.com/file/d/1yHtHPP26Q7N32MJaXJihSGRrPMT7pf7-/view
     """
+    h, status = cv2.findHomography(corners_updated,objp_2)
 
     ### Wrap the image ###
     """
         Reference function given in the Class note is "warpPerspective"
     """
+
+    im_out = cv2.warpPerspective(outputImage_camera, h, (outputImage_camera.shape[1],outputImage_camera.shape[0]))
+    cv2.imshow("Warped Source Image", im_out)
+    cv2.imwrite("Warped_Source_Image.png", im_out)
+    cv2.waitKey()
