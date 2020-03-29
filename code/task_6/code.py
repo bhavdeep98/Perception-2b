@@ -112,10 +112,20 @@ for frame in left_imgs:
 
 	cam_frustrum3 = np.squeeze(np.asarray(cam_frustrum2))
 
-	ax.plot(cam_frustrum1[:,0], cam_frustrum1[:,1], cam_frustrum1[:,2])
+	#ax.plot(cam_frustrum1[:,0], cam_frustrum1[:,1], cam_frustrum1[:,2])
 	ax.plot(cam_frustrum3[:,0], cam_frustrum3[:,1], cam_frustrum3[:,2])
 	# plot top left corner as red dot
 	ax.scatter(cam_frustrum3[:,0][0], cam_frustrum3[:,1][0], cam_frustrum3[:,2][0], c='r', marker='o',zdir="z")
+
+# Plot square as representation of ArUco marker
+cam_aruco = np.array([[0,0,0],
+	           [10,0,0],
+	           [10,10,0],
+	           [0,10,0],
+	           [0,0,0]])
+
+ax.plot(cam_aruco[:,0], cam_aruco[:,1], cam_aruco[:,2])
+ax.scatter(0,0,0, c='r', marker='o',zdir="z")
 
 #plt.show()
 
