@@ -203,12 +203,13 @@ if __name__ == "__main__":
     """
     h, status = cv2.findHomography(corners_updated,objp_2)
 
+    print(h)
     ### Wrap the image ###
     """
         Reference function given in the Class note is "warpPerspective"
     """
 
-    im_out = cv2.warpPerspective(outputImage_camera, h, (outputImage_camera.shape[1],outputImage_camera.shape[0]))
+    im_out = cv2.warpPerspective(outputImage_camera, h, (1000,1000))
     cv2.imshow("Warped Source Image", im_out)
-    cv2.imwrite("Warped_Source_Image.png", im_out)
+    cv2.imwrite("Warped_Source_Image1.png", im_out)
     cv2.waitKey()
