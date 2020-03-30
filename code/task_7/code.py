@@ -207,6 +207,9 @@ class CV():
 
         E, mask = cv2.findEssentialMat(np.float32(ptsl1), np.float32(ptsl2),cameraMatrix=call[0])
 
+        print("Essential Matrix:", E)
+        np.savetxt("../../output/task_7/"+pref+"_Emat.npy",E)
+
         ptsl1_E = ptsl1[mask.ravel() == 1]
         ptsl2_E = ptsl2[mask.ravel() == 1]
         matches_E = []
@@ -237,8 +240,12 @@ class CV():
             if mask[i] == 255:
                 matches_E2.append(matches_E[i]) 
 
+        print("Recovered Pose:",points,R,t)
+
+        np.savetxt("../../output/task_7/"+pref+"_R.npy",R)
+        np.savetxt("../../output/task_7/"+pref+"_t.npy",t)
+
         t = t*10
-        print(points,R,t,mask)
 
         M_r = np.hstack((R, t))
         M_l = np.hstack((np.eye(3, 3), np.zeros((3, 1))))
