@@ -33,11 +33,11 @@ class planarHomography():
         img = cv2.imread(self.path+"/"+image_name)
         cv2.imshow("Single Loaded Image to check",img)
         cv2.waitKey(500)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         h, w = img.shape[:2]
         self.h = h
         self.w = w
-        return gray
+        return img
 
     def load_images(self):
         left_images = self.path+"/left*"
@@ -158,7 +158,7 @@ if __name__ == "__main__":
 
     ### Step 1 ###
     ### Load the image and the camera parameters
-    gray = pHomography.load_single("left_0.png")
+    gray = pHomography.load_single("right_0.png")
 
     call = []
     carr = []
@@ -168,8 +168,11 @@ if __name__ == "__main__":
     carr.append(np.loadtxt("../../parameters/right_provided/cameraMatrix.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
     carr.append(np.loadtxt("../../parameters/right_provided/cameraDistortion.txt", delimiter=','))#, encoding='bytes', allow_pickle=True).item()
     
-    # objs, imgpoints = cv2.findChessboardCorners(gray, (9, 6), None)
-    corners = pHomography.find_corners([gray])
+    ret, corners = cv2.findChessboardCorners(gray, (9, 6), None)
+    ret_l = cv2.drawChessboardCorners(gray, (9, 6),corners, ret)
+    cv2.imshow("image", gray)
+    cv2.waitKey(500)
+    # corners = pHomography.find_corners([gray])
     # print(corners)
     ### Step 2 ###
     ### Undistort the loaded image and extract 2D-2D point corrospondence
@@ -211,5 +214,5 @@ if __name__ == "__main__":
 
     im_out = cv2.warpPerspective(outputImage_camera, h, (1000,1000))
     cv2.imshow("Warped Source Image", im_out)
-    cv2.imwrite("Warped_Source_Image1.png", im_out)
+    cv2.imwrite("Warped_Source_Image_right_0.png", im_out)
     cv2.waitKey()
